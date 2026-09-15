@@ -1,0 +1,75 @@
+# .NET
+**/bin/
+**/obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS Code
+.vscode/
+
+# JetBrains
+.idea/
+*.sln.iml
+
+# Tests / coverage
+TestResults/
+**/TestResults/
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+appsettings.Development.local.json
+appsettings.Local.json
+secrets.json
+
+# Azure local config
+.azure/
+
+# Bicep generated output
+infra/*.json
+!infra/*.parameters.json
+
+# Docker
+docker-compose.override.yml
+
+# Temp files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# Publish output
+publish/
+**/publish/
+
+# Local database files
+*.db
+*.db-shm
+*.db-wal

@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Scanly.Api/Scanly.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Scanly.Api.Tests/Scanly.Api.Tests.csproj" />
+  </Folder>
+</Solution>
