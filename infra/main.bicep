@@ -88,6 +88,8 @@ resource blobContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01
 resource containerAppsEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = {
   name: containerAppsEnvironmentName
   location: location
+
+  properties: {}
 }
 
 resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
