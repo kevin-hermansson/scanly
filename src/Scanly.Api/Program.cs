@@ -1,3 +1,5 @@
+using Azure;
+using Azure.AI.DocumentIntelligence;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using System.Text.Json;
@@ -21,6 +23,33 @@ builder.Services.AddSingleton(
     new BlobServiceClient(
         new Uri(blobServiceUri),
         new DefaultAzureCredential()
+    )
+);
+
+var documentIntelligenceEndpoint =
+    Environment.GetEnvironmentVariable("AZURE_DI_ENDPOINT");
+
+var documentIntelligenceKey =
+    Environment.GetEnvironmentVariable("AZURE_DI_KEY");
+
+if (string.IsNullOrWhiteSpace(documentIntelligenceEndpoint))
+{
+    throw new InvalidOperationException(
+        "AZURE_DI_ENDPOINT is missing."
+    );
+}
+
+if (string.IsNullOrWhiteSpace(documentIntelligenceKey))
+{
+    throw new InvalidOperationException(
+        "AZURE_DI_KEY is missing."
+    );
+}
+
+builder.Services.AddSingleton(
+    new DocumentIntelligenceClient(
+        new Uri(documentIntelligenceEndpoint),
+        new AzureKeyCredential(documentIntelligenceKey)
     )
 );
 
@@ -95,7 +124,8 @@ app.MapGet("/invoices/{id:guid}", async (
 
 app.MapPost("/invoices", async (
     IFormFile file,
-    BlobServiceClient blobServiceClient) =>
+    BlobServiceClient blobServiceClient,
+    DocumentIntelligenceClient documentClient) =>
 {
     if (file.Length == 0)
     {
@@ -105,28 +135,83 @@ app.MapPost("/invoices", async (
         });
     }
 
-    var invoice = new InvoiceResponse(
-        Id: Guid.NewGuid(),
-        VendorName: "Ej analyserad ännu",
-        InvoiceNumber: "Ej analyserad ännu",
-        InvoiceDate: DateOnly.FromDateTime(DateTime.UtcNow),
-        DueDate: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)),
-        Total: 0,
-        Currency: "SEK"
+    await using var memoryStream = new MemoryStream();
+
+    await file.CopyToAsync(memoryStream);
+
+    var fileData = BinaryData.FromBytes(memoryStream.ToArray());
+
+    var operation = await documentClient.AnalyzeDocumentAsync(
+        WaitUntil.Completed,
+        "prebuilt-invoice",
+        fileData
     );
 
-    var container = blobServiceClient.GetBlobContainerClient(containerName);
+    var result = operation.Value;
 
-    var blobClient = container.GetBlobClient($"{invoice.Id}.json");
+    if (result.Documents.Count == 0)
+    {
+        return Results.BadRequest(new
+        {
+            message = "Document Intelligence kunde inte hitta någon faktura."
+        });
+    }
 
-    var json = JsonSerializer.Serialize(invoice);
+    var document = result.Documents[0];
+    var fields = document.Fields;
+
+    var vendorName =
+        GetStringField(fields, "VendorName")
+        ?? "Okänd leverantör";
+
+    var invoiceNumber =
+        GetStringField(fields, "InvoiceId")
+        ?? "Okänt fakturanummer";
+
+    var invoiceDate =
+        GetDateField(fields, "InvoiceDate")
+        ?? DateOnly.FromDateTime(DateTime.UtcNow);
+
+    var dueDate =
+        GetDateField(fields, "DueDate")
+        ?? invoiceDate.AddDays(30);
+
+    var invoiceTotal =
+        GetCurrencyAmount(fields, "InvoiceTotal")
+        ?? 0m;
+
+    var currency =
+        GetCurrencyCode(fields, "InvoiceTotal")
+        ?? "SEK";
+
+    var invoice = new InvoiceResponse(
+        Id: Guid.NewGuid(),
+        VendorName: vendorName,
+        InvoiceNumber: invoiceNumber,
+        InvoiceDate: invoiceDate,
+        DueDate: dueDate,
+        Total: invoiceTotal,
+        Currency: currency
+    );
+
+    var container =
+        blobServiceClient.GetBlobContainerClient(containerName);
+
+    var blobClient =
+        container.GetBlobClient($"{invoice.Id}.json");
+
+    var json =
+        JsonSerializer.Serialize(invoice);
 
     await blobClient.UploadAsync(
         BinaryData.FromString(json),
         overwrite: true
     );
 
-    return Results.Created($"/invoices/{invoice.Id}", invoice);
+    return Results.Created(
+        $"/invoices/{invoice.Id}",
+        invoice
+    );
 })
 .WithName("CreateInvoice")
 .WithTags("Invoices")
@@ -136,6 +221,69 @@ app.MapPost("/invoices", async (
 .Produces(StatusCodes.Status400BadRequest);
 
 app.Run();
+
+static string? GetStringField(
+    IReadOnlyDictionary<string, DocumentField> fields,
+    string fieldName)
+{
+    if (!fields.TryGetValue(fieldName, out var field))
+    {
+        return null;
+    }
+
+    return field.ValueString ?? field.Content;
+}
+
+static DateOnly? GetDateField(
+    IReadOnlyDictionary<string, DocumentField> fields,
+    string fieldName)
+{
+    if (!fields.TryGetValue(fieldName, out var field))
+    {
+        return null;
+    }
+
+    if (field.ValueDate is null)
+    {
+        return null;
+    }
+
+    return DateOnly.FromDateTime(field.ValueDate.Value.DateTime);
+}
+
+static decimal? GetCurrencyAmount(
+    IReadOnlyDictionary<string, DocumentField> fields,
+    string fieldName)
+{
+    if (!fields.TryGetValue(fieldName, out var field))
+    {
+        return null;
+    }
+
+    if (field.ValueCurrency is not null)
+    {
+        return Convert.ToDecimal(field.ValueCurrency.Amount);
+    }
+
+    if (field.ValueDouble is not null)
+    {
+        return Convert.ToDecimal(field.ValueDouble.Value);
+    }
+
+    return null;
+}
+
+static string? GetCurrencyCode(
+    IReadOnlyDictionary<string, DocumentField> fields,
+    string fieldName)
+{
+    if (!fields.TryGetValue(fieldName, out var field))
+    {
+        return null;
+    }
+
+    return field.ValueCurrency?.CurrencyCode;
+}
 
 record InvoiceResponse(
     Guid Id,
