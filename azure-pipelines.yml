@@ -1,0 +1,73 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  buildConfiguration: Release
+
+  resourceGroup: RG-Kevin-Hermansson-85be85-DotNetCloudDeveloper-VT-Mars-Goteborg
+
+  acrName: scanlykevinacr85be
+  acrLoginServer: scanlykevinacr85be.azurecr.io
+
+  imageName: scanly-api
+  imageTag: $(Build.BuildId)
+
+  containerAppName: scanly-app
+
+  azureServiceConnection: scanly-service-connection
+
+steps:
+
+- task: UseDotNet@2
+  displayName: Install .NET 10
+  inputs:
+    packageType: sdk
+    version: 10.0.x
+
+- script: dotnet restore Scanly.slnx
+  displayName: Restore
+
+- script: dotnet build Scanly.slnx --configuration $(buildConfiguration) --no-restore
+  displayName: Build
+
+- script: dotnet test Scanly.slnx --configuration $(buildConfiguration) --no-build
+  displayName: Test
+
+- task: AzureCLI@2
+  displayName: Build and push Docker image
+  inputs:
+    azureSubscription: $(azureServiceConnection)
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      az acr login --name $(acrName)
+
+      docker build \
+        -t $(acrLoginServer)/$(imageName):$(imageTag) \
+        -t $(acrLoginServer)/$(imageName):latest \
+        .
+
+      docker push $(acrLoginServer)/$(imageName):$(imageTag)
+      docker push $(acrLoginServer)/$(imageName):latest
+
+- task: AzureCLI@2
+  displayName: Deploy to Azure Container Apps
+  inputs:
+    azureSubscription: $(azureServiceConnection)
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      az extension add \
+        --name containerapp \
+        --upgrade \
+        --yes
+
+      az containerapp update \
+        --name $(containerAppName) \
+        --resource-group $(resourceGroup) \
+        --image $(acrLoginServer)/$(imageName):$(imageTag)
