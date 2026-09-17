@@ -32,26 +32,27 @@ var documentIntelligenceEndpoint =
 var documentIntelligenceKey =
     Environment.GetEnvironmentVariable("AZURE_DI_KEY");
 
-if (string.IsNullOrWhiteSpace(documentIntelligenceEndpoint))
+if (!string.IsNullOrWhiteSpace(documentIntelligenceEndpoint))
 {
-    throw new InvalidOperationException(
-        "AZURE_DI_ENDPOINT is missing."
-    );
+    if (!string.IsNullOrWhiteSpace(documentIntelligenceKey))
+    {
+        builder.Services.AddSingleton(
+            new DocumentIntelligenceClient(
+                new Uri(documentIntelligenceEndpoint),
+                new AzureKeyCredential(documentIntelligenceKey)
+            )
+        );
+    }
+    else
+    {
+        builder.Services.AddSingleton(
+            new DocumentIntelligenceClient(
+                new Uri(documentIntelligenceEndpoint),
+                new DefaultAzureCredential()
+            )
+        );
+    }
 }
-
-if (string.IsNullOrWhiteSpace(documentIntelligenceKey))
-{
-    throw new InvalidOperationException(
-        "AZURE_DI_KEY is missing."
-    );
-}
-
-builder.Services.AddSingleton(
-    new DocumentIntelligenceClient(
-        new Uri(documentIntelligenceEndpoint),
-        new AzureKeyCredential(documentIntelligenceKey)
-    )
-);
 
 var app = builder.Build();
 
@@ -64,7 +65,9 @@ app.MapGet("/health", () =>
     {
         status = "healthy",
         service = "Scanly.Api",
-        timestamp = DateTime.UtcNow
+        timestamp = DateTime.UtcNow,
+        documentIntelligenceConfigured =
+            !string.IsNullOrWhiteSpace(documentIntelligenceEndpoint)
     });
 })
 .WithName("Health")
@@ -125,7 +128,7 @@ app.MapGet("/invoices/{id:guid}", async (
 app.MapPost("/invoices", async (
     IFormFile file,
     BlobServiceClient blobServiceClient,
-    DocumentIntelligenceClient documentClient) =>
+    IServiceProvider serviceProvider) =>
 {
     if (file.Length == 0)
     {
@@ -135,8 +138,15 @@ app.MapPost("/invoices", async (
         });
     }
 
-    await using var memoryStream = new MemoryStream();
+    var documentClient =
+        serviceProvider.GetService<DocumentIntelligenceClient>();
 
+    if (documentClient is null)
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+
+    await using var memoryStream = new MemoryStream();
     await file.CopyToAsync(memoryStream);
 
     var fileData = BinaryData.FromBytes(memoryStream.ToArray());
@@ -218,7 +228,8 @@ app.MapPost("/invoices", async (
 .Accepts<IFormFile>("multipart/form-data")
 .DisableAntiforgery()
 .Produces<InvoiceResponse>(StatusCodes.Status201Created)
-.Produces(StatusCodes.Status400BadRequest);
+.Produces(StatusCodes.Status400BadRequest)
+.Produces(StatusCodes.Status503ServiceUnavailable);
 
 app.Run();
 
