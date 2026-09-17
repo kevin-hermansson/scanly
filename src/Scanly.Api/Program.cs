@@ -61,18 +61,17 @@ app.UseSwaggerUI();
 
 app.MapGet("/health", () =>
 {
-    return Results.Ok(new
-    {
-        status = "healthy",
-        service = "Scanly.Api",
-        timestamp = DateTime.UtcNow,
-        documentIntelligenceConfigured =
+    return Results.Ok(new HealthResponse(
+        Status: "healthy",
+        Service: "Scanly.Api",
+        Timestamp: DateTime.UtcNow,
+        DocumentIntelligenceConfigured:
             !string.IsNullOrWhiteSpace(documentIntelligenceEndpoint)
-    });
+    ));
 })
 .WithName("Health")
 .WithTags("Health")
-.Produces(StatusCodes.Status200OK);
+.Produces<HealthResponse>(StatusCodes.Status200OK);
 
 app.MapGet("/invoices", async (BlobServiceClient blobServiceClient) =>
 {
@@ -194,6 +193,8 @@ app.MapPost("/invoices", async (
         GetCurrencyCode(fields, "InvoiceTotal")
         ?? "SEK";
 
+    var items = GetInvoiceItems(fields);
+
     var invoice = new InvoiceResponse(
         Id: Guid.NewGuid(),
         VendorName: vendorName,
@@ -201,7 +202,8 @@ app.MapPost("/invoices", async (
         InvoiceDate: invoiceDate,
         DueDate: dueDate,
         Total: invoiceTotal,
-        Currency: currency
+        Currency: currency,
+        Items: items
     );
 
     var container =
@@ -296,6 +298,85 @@ static string? GetCurrencyCode(
     return field.ValueCurrency?.CurrencyCode;
 }
 
+static List<InvoiceItem> GetInvoiceItems(
+    IReadOnlyDictionary<string, DocumentField> fields)
+{
+    var items = new List<InvoiceItem>();
+
+    if (!fields.TryGetValue("Items", out var itemsField))
+    {
+        return items;
+    }
+
+    if (itemsField.ValueList is null)
+    {
+        return items;
+    }
+
+    foreach (var itemField in itemsField.ValueList)
+    {
+        if (itemField.ValueDictionary is null)
+        {
+            continue;
+        }
+
+        var itemFields = itemField.ValueDictionary;
+
+        var description =
+            GetStringField(itemFields, "Description")
+            ?? "Okänd artikel";
+
+        var quantity =
+            GetNumberField(itemFields, "Quantity");
+
+        var unitPrice =
+            GetCurrencyAmount(itemFields, "UnitPrice");
+
+        var amount =
+            GetCurrencyAmount(itemFields, "Amount");
+
+        items.Add(new InvoiceItem(
+            Description: description,
+            Quantity: quantity,
+            UnitPrice: unitPrice,
+            Amount: amount
+        ));
+    }
+
+    return items;
+}
+
+static decimal? GetNumberField(
+    IReadOnlyDictionary<string, DocumentField> fields,
+    string fieldName)
+{
+    if (!fields.TryGetValue(fieldName, out var field))
+    {
+        return null;
+    }
+
+    if (field.ValueDouble is not null)
+    {
+        return Convert.ToDecimal(field.ValueDouble.Value);
+    }
+
+    return null;
+}
+
+record HealthResponse(
+    string Status,
+    string Service,
+    DateTime Timestamp,
+    bool DocumentIntelligenceConfigured
+);
+
+record InvoiceItem(
+    string Description,
+    decimal? Quantity,
+    decimal? UnitPrice,
+    decimal? Amount
+);
+
 record InvoiceResponse(
     Guid Id,
     string VendorName,
@@ -303,5 +384,6 @@ record InvoiceResponse(
     DateOnly InvoiceDate,
     DateOnly DueDate,
     decimal Total,
-    string Currency
+    string Currency,
+    List<InvoiceItem> Items
 );
