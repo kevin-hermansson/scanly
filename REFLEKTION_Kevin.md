@@ -2,9 +2,7 @@
 
 ## 1. Min roll
 
-Jag gjorde uppgiften själv och hade därför ansvar för hela lösningen. Det innebar att jag jobbade med både API:t, Azure-resurserna, Docker, Bicep, CI/CD och dokumentationen. Jag fick också felsöka när saker inte fungerade och testa att hela flödet fungerade från uppladdning av en faktura till att resultatet sparades i Blob Storage.
-
-Det var ganska mycket olika delar att hålla koll på samtidigt, men jag tycker att det blev tydligare ju längre jag kom eftersom alla delar började hänga ihop.
+Jag gjorde uppgiften själv och hade därför ansvar för hela lösningen. Jag arbetade bland annat med API-koden i `Program.cs`, infrastrukturen i `infra/main.bicep` och CI/CD-flödet i `azure-pipelines.yml`. Jag jobbade också med Docker, Azure-resurserna, testerna och dokumentationen. Eftersom jag gjorde allt själv behövde jag både bygga lösningen, felsöka problem och kontrollera att hela flödet fungerade från uppladdad faktura till sparat resultat i Blob Storage.
 
 ## 2. Det svåraste momentet
 
@@ -39,3 +37,5 @@ Jag tycker att Azure Container Apps passade bra för Scanly eftersom lösningen 
 Den största kostnaden i lösningen är Azure Document Intelligence eftersom kostnaden ökar beroende på hur många sidor som analyseras. Blob Storage och Container Registry är relativt små kostnader i jämförelse.
 
 Med ungefär 15 000 fakturor per månad uppskattade jag Azure-kostnaden till runt 1 650–1 900 kr per månad. Vid cirka 100 000 fakturor per månad blir den ungefär 10 200–10 800 kr. Det gjorde det tydligt för mig att arkitektur inte bara handlar om vad som fungerar tekniskt, utan också om vad lösningen kostar när användningen ökar.
+
+Den del jag ser som mest sårbar just nu är att API:t är publikt och saknar autentisering och rate limiting, så i en riktig produktionsmiljö hade jag prioriterat att lösa det först.

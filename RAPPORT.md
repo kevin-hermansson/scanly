@@ -1,17 +1,17 @@
 # Teknisk leveransrapport – Scanly
 
-**Uppdrag:** Scanly AB – Fakturaigenkänning som tjänst  
-**Konsult:** Kevin  
-**Datum:** 2026-09-17  
-**Version:** 1.0  
+**Uppdrag:** Scanly AB – Fakturaigenkänning som tjänst
+**Konsult:** Kevin
+**Datum:** 2026-09-17
+**Version:** 1.0
 
 ---
 
 ## Sammanfattning
 
-Jag har byggt en molnbaserad lösning för Scanly där en användare kan ladda upp en faktura som PDF eller bild och få tillbaka strukturerad information från fakturan. Systemet använder Azure Document Intelligence för att läsa bland annat leverantör, fakturanummer, datum, belopp och radposter.
+Jag har byggt en molnlösning för Scanly där kunder kan ladda upp fakturor och automatiskt få tillbaka information som leverantör, fakturanummer, datum, belopp och radposter. Resultatet sparas så att det går att hämta igen senare via API:t.
 
-API:t körs i Azure Container Apps och resultatet från fakturaanalysen sparas som JSON i Azure Blob Storage. Jag använder även Docker, Azure Container Registry, Bicep och Azure DevOps Pipeline för att bygga och deploya lösningen.
+Lösningen är automatiskt deployad i Azure och är byggd för att kunna köras på flera instanser samtidigt. Fokus har varit att få ett fungerande och säkert grundflöde som senare kan byggas vidare med bland annat autentisering, bättre övervakning och fler produktionsfunktioner.
 
 ---
 
@@ -117,7 +117,7 @@ För den här lösningen behövs ingen mer avancerad databas. Blob Storage är e
 
 ---
 
-## Säkerhet
+## Säkerhetsarkitektur
 
 Jag använder Managed Identity för kommunikationen mellan Container Appen och flera Azure-resurser.
 
@@ -152,6 +152,8 @@ Om en API-nyckel av misstag skulle hamna i Git behöver nyckeln bytas eller rote
 ---
 
 ## Kostnadskalkyl
+
+Kostnaderna nedan är uppskattningar baserade på scenariots volymer och Azure-priser. Den riktiga kostnaden kan variera beroende på region, faktisk trafik, antal sidor per faktura och resursanvändning.
 
 Scanly tar enligt scenariot 299 kr per månad och kund.
 

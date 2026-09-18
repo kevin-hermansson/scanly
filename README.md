@@ -45,3 +45,33 @@ Bygg projektet:
 
 ```bash
 dotnet build
+```
+
+Starta API:t:
+
+```bash
+dotnet run --project src/Scanly.Api
+```
+
+För att använda Azure Document Intelligence lokalt behövs miljövariablerna:
+
+```text
+AZURE_DI_ENDPOINT
+AZURE_DI_KEY
+```
+
+API-nyckeln sparas inte i Git.
+
+## Infrastruktur
+
+Azure-infrastrukturen finns i:
+
+```text
+infra/main.bicep
+```
+
+Mer information om projektet finns i:
+
+- `ARCHITECTURE.md`
+- `RAPPORT.md`
+- `REFLEKTION_Kevin.md`
